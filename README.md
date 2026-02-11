@@ -622,6 +622,92 @@ No code changes or redeployment required.
 
 ---
 
+## Cloud Storage Integration
+
+ML Worker downloads images from and uploads results to **Cloud Storage** using a provider-agnostic interface.
+
+### Storage Structure
+
+```
+gs://stockcontrol-images/
+└── {industry}/                    # e.g., cultivadores/
+    └── {tenant_id}/               # e.g., cactus-mendoza/
+        ├── sessions/
+        │   └── {session_id}/
+        │       ├── original/      # Source images (downloaded)
+        │       ├── processed/     # ML output images (uploaded)
+        │       ├── thumbnails/    # Generated thumbnails
+        │       └── web/           # Web-optimized versions
+        └── products/
+```
+
+### Image URLs
+
+The ML Worker receives `gs://` URLs in task payloads:
+
+```json
+{
+  "tenant_id": "cactus-mendoza",
+  "session_id": "...",
+  "image_id": "...",
+  "image_url": "gs://stockcontrol-images/cultivadores/cactus-mendoza/sessions/.../original/photo.jpg",
+  "pipeline": "SEGMENT_DETECT"
+}
+```
+
+### Tenant Path Validation
+
+Images are validated to ensure they belong to the requesting tenant:
+
+```python
+# TenantPathError raised if image_url doesn't match tenant_id
+if not image_url.contains(f"/{tenant_id}/"):
+    raise TenantPathError("Path does not belong to tenant")
+```
+
+---
+
+## Artifact Registry
+
+Docker images are organized by **industry**:
+
+```
+us-central1-docker.pkg.dev/PROJECT/
+└── cultivadores/               # Industry-specific repo
+    ├── mlworker:v1.0.0
+    ├── mlworker:latest
+    └── ...
+```
+
+### CPU-Only Optimization
+
+The Docker image is optimized for **CPU-only inference** to reduce size:
+
+```dockerfile
+# Install CPU-only PyTorch (no CUDA dependencies)
+RUN uv pip install --no-cache torch torchvision \
+    --index-url https://download.pytorch.org/whl/cpu
+```
+
+**Image sizes:**
+- With CUDA: ~8GB
+- CPU-only: ~1.7GB
+
+### Models Embedded in Image
+
+ML models are embedded in the Docker image (not downloaded at runtime):
+
+```dockerfile
+COPY models/ /app/models/
+```
+
+This ensures:
+- Faster cold starts (no model download)
+- Consistent model versions per image tag
+- Industry-specific models per image
+
+---
+
 ## Tech Stack
 
 | Component | Technology |
@@ -629,7 +715,7 @@ No code changes or redeployment required.
 | Language | Python 3.11 |
 | Framework | FastAPI 0.115 |
 | ML Runtime | Ultralytics 8.3 (YOLO) |
-| ML Framework | PyTorch 2.5 |
+| ML Framework | PyTorch 2.5 (CPU-only) |
 | Database | Async SQLAlchemy + asyncpg |
 | Storage | google-cloud-storage |
 | Task Queue | Google Cloud Tasks |
@@ -637,6 +723,7 @@ No code changes or redeployment required.
 | Logging | structlog (JSON for Cloud Logging) |
 | Validation | Pydantic 2.9 |
 | Testing | pytest + pytest-asyncio |
+| Registry | Google Artifact Registry |
 
 ---
 
