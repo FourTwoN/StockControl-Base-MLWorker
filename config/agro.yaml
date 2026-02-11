@@ -12,20 +12,17 @@ version: "1.0.0"
 models:
   detection:
     path: detect.pt
-    confidence_threshold: 0.80
+    confidence_threshold: 0.25
     classes:
-      - plant
-      - weed
-      - pest
+      - item
     enabled: true
 
   segmentation:
     path: segment.pt
-    confidence_threshold: 0.50
+    confidence_threshold: 0.30
     classes:
-      - field
-      - row
       - cajon
+      - claro-cajon
     enabled: true
 
   classification:
@@ -54,6 +51,12 @@ pipelines:
       - segmentation
       - detection
       - estimation
+
+  # Segment and detect (without estimation) - useful for POC/testing
+  SEGMENT_DETECT:
+    steps:
+      - segmentation
+      - detection
 
   # Quick count without segmentation
   QUICK_COUNT:

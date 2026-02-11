@@ -79,11 +79,13 @@ class SegmentationProcessor(BaseProcessor[list[SegmentResult]]):
     async def process(
         self,
         image_path: str | Path,
+        classes: list[str] | None = None,
     ) -> list[SegmentResult]:
         """Segment image to extract regions.
 
         Args:
             image_path: Path to image file
+            classes: Optional list of class names to filter results
 
         Returns:
             List of SegmentResult objects
@@ -118,7 +120,7 @@ class SegmentationProcessor(BaseProcessor[list[SegmentResult]]):
             )
 
             # Parse results
-            segments = self._parse_results(results[0])
+            segments = self._parse_results(results[0], classes)
 
             logger.info(
                 "Segmentation complete",
@@ -137,11 +139,16 @@ class SegmentationProcessor(BaseProcessor[list[SegmentResult]]):
             )
             raise RuntimeError(f"Segmentation failed: {e}") from e
 
-    def _parse_results(self, result: "Results") -> list[SegmentResult]:
+    def _parse_results(
+        self,
+        result: "Results",
+        classes: list[str] | None = None,
+    ) -> list[SegmentResult]:
         """Parse YOLO segmentation results.
 
         Args:
             result: YOLO Results object
+            classes: Optional list of class names to filter results
 
         Returns:
             List of SegmentResult objects
@@ -159,16 +166,20 @@ class SegmentationProcessor(BaseProcessor[list[SegmentResult]]):
         for idx, (box, cls, conf) in enumerate(
             zip(result.boxes.xyxy, result.boxes.cls, result.boxes.conf, strict=False)
         ):
+            # Get class name
+            class_id = int(cls.item())
+            class_name = result.names[class_id]
+
+            # Filter by classes if specified
+            if classes and class_name not in classes:
+                continue
+
             # Extract bbox
             x1, y1, x2, y2 = (float(coord) for coord in box.tolist())
             bbox = (x1, y1, x2, y2)
 
             # Calculate area from bbox (or mask if available)
             area = (x2 - x1) * (y2 - y1)
-
-            # Get class name
-            class_id = int(cls.item())
-            class_name = result.names[class_id]
 
             segments.append(
                 SegmentResult(

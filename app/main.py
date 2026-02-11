@@ -21,6 +21,7 @@ from app.core.processor_registry import get_processor_registry
 # Import routers
 from app.api.routes.health import router as health_router
 from app.api.routes.tasks import router as tasks_router
+from app.api.routes.upload import router as upload_router
 
 # Setup logging first
 setup_logging()
@@ -176,6 +177,7 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
 
 app.include_router(health_router, tags=["Health"])
 app.include_router(tasks_router, prefix="/tasks", tags=["Tasks"])
+app.include_router(upload_router, prefix="/dev", tags=["Development"])
 
 
 # =============================================================================

@@ -107,12 +107,14 @@ class DetectorProcessor(BaseProcessor[list[DetectionResult]]):
         self,
         image_path: str | Path,
         segment: Any = None,
+        classes: list[str] | None = None,
     ) -> list[DetectionResult]:
         """Detect plants in image using standard YOLO.
 
         Args:
             image_path: Path to image file
             segment: Optional segment info for context
+            classes: Optional list of class names to filter results
 
         Returns:
             List of DetectionResult objects, sorted by confidence descending
@@ -147,7 +149,7 @@ class DetectorProcessor(BaseProcessor[list[DetectionResult]]):
             )
 
             # Parse YOLO results
-            detections = self._parse_yolo_results(results[0])
+            detections = self._parse_yolo_results(results[0], classes)
 
             logger.info(
                 "Detection complete",
@@ -167,11 +169,16 @@ class DetectorProcessor(BaseProcessor[list[DetectionResult]]):
             )
             raise RuntimeError(f"Detection failed: {e}") from e
 
-    def _parse_yolo_results(self, result: "Results") -> list[DetectionResult]:
+    def _parse_yolo_results(
+        self,
+        result: "Results",
+        classes: list[str] | None = None,
+    ) -> list[DetectionResult]:
         """Parse YOLO Results object into DetectionResult objects.
 
         Args:
             result: YOLO Results object from model.predict()
+            classes: Optional list of class names to filter results
 
         Returns:
             List of DetectionResult objects, sorted by confidence descending
@@ -190,6 +197,14 @@ class DetectorProcessor(BaseProcessor[list[DetectionResult]]):
             result.boxes.conf,
             strict=False,
         ):
+            # Get class name
+            class_id = int(cls.item())
+            class_name = result.names[class_id]
+
+            # Filter by classes if specified
+            if classes and class_name not in classes:
+                continue
+
             # Extract bbox coordinates
             x1, y1, x2, y2 = (float(coord) for coord in box.tolist())
 
@@ -198,10 +213,6 @@ class DetectorProcessor(BaseProcessor[list[DetectionResult]]):
             center_y = (y1 + y2) / 2
             width = x2 - x1
             height = y2 - y1
-
-            # Get class name
-            class_id = int(cls.item())
-            class_name = result.names[class_id]
 
             detections.append(
                 DetectionResult(
