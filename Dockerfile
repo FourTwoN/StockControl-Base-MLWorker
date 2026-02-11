@@ -20,11 +20,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN pip install --no-cache-dir uv
 
 # Copy dependency files
-COPY pyproject.toml ./
+COPY pyproject.toml README.md ./
 
 # Create virtual environment and install dependencies
+# Install CPU-only PyTorch first to avoid huge CUDA dependencies
 RUN uv venv /opt/venv && \
     . /opt/venv/bin/activate && \
+    uv pip install --no-cache torch torchvision --index-url https://download.pytorch.org/whl/cpu && \
     uv pip install --no-cache .
 
 # -----------------------------------------------------------------------------
